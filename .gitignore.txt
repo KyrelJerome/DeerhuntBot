@@ -1,0 +1,7 @@
+./neo-deerhunt-master/maps
+./neo-deerhunt-master/server
+./run.sh
+./neo-deerhunt-master/client/__pycache__
+./neo-deerhunt-master/client/__client_runner.py
+./neo-deerhunt-master/client/helper_classes.py
+./neo-deerhunt-master/client/move.py
