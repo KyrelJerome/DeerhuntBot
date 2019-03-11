@@ -1,4 +1,6 @@
 from helper_classes import *
+import random
+
 class GridPlayer:
 
     def __init__(self):
@@ -50,11 +52,13 @@ class GridPlayer:
         print("")
         #worker movement stuff
         if workers != None and len(workers) > 0:
+            output_worker_resource = {}
             for worker in workers:
                 onResource = False
                 looper = 0
                 while looper < len(res):
                     if worker.position() == res[looper]:
+                        output_worker_resource[str(worker.id)] = res[looper]
                         res.remove(res[looper])
                         print("worker already on resource: "+str(worker.id))
                         onResource = True
@@ -62,7 +66,6 @@ class GridPlayer:
                     looper += 1
                 if  not onResource:
                     unused_workers.append(str(worker.id))
-            output_worker_resource = {}
             k = 0
             while  0 < len(unused_workers) and 0 < len(res) and unused_workers != None and res != None:
                 print("")
@@ -115,7 +118,7 @@ class GridPlayer:
                 #Get alerted, run from enemies within distance    
                 if len(alertables) > 0 and alertables[0][1] <= 2:
                     #run
-                    print("I!" + str(alertables))
+                    print("Running from : " + str(alertables))
                     current_alertable = 0
                     directions = ['UP', 'DOWN', 'LEFT', 'RIGHT']
                     while current_alertable < len(alertables) and alertables[current_alertable][1] <= 2:
@@ -123,9 +126,16 @@ class GridPlayer:
                         print("Enemy found in direction: " + direction) 
                         if direction != None and  (direction in directions):
                             directions.remove(direction)
-                    if len(directions) > 0:
-                        print("running away, to: " + directions[0]) 
-                        moves.append(worker.move(directions[0]))
+                        current_alertable += 1
+                    print("Possible directions: " + str(directions))
+                    for direction in directions:
+                        print("testing: " + direction)
+                        goal = coordinate_from_direction(worker.position()[0], worker.position()[1], direction)
+                        if is_open(game_map, goal, your_units, enemy_units):
+                            print("running away, to: " + direction) 
+                            moves.append(worker.move_towards(goal))
+                        else:
+                            print("Cannot move in:" + direction)
                 # If its safe to, and you can collect the drugs, collect the drugs
                 elif worker.can_mine(game_map):
                     print("Mining:" + str(worker.id))
@@ -177,8 +187,8 @@ class GridPlayer:
             if melee != None:
                 isAttacking = False
                 targets = melee.can_attack(enemy_units)
-                #print("")
-                #print("Melee at" + str(melee.position())+ ": " + str(melee.id))
+                print("")
+                print("Melee at" + str(melee.position())+ ": " + str(melee.id))
                 # if you can hit someone, hit that man bruh
                 if len(targets) >= 1 :
                     target = targets[0][0]
@@ -188,7 +198,7 @@ class GridPlayer:
                     attackers.append(melee)
                 else:
                     enemies = melee.nearby_enemies_by_distance(enemy_units)
-                   # print("total enemies" + str(len(enemy_units.units)) + " , nearby enemies:" + str(len(enemies)) )
+                    print("total enemies" + str(len(enemy_units.units)) + " , nearby enemies:" + str(len(enemies)) )
                     if len(enemies) >= 1:
                         attackers.append(melee)
                         isAttacking = True
@@ -217,31 +227,30 @@ class GridPlayer:
                                 is_guarding = True
                                 guarding = your_units.get_unit(str(key))
                                 break        
-                        
-                        if len(melees) <=  2*self.num_workers and num_resources >= 100 : #len(resources)*num_melees:
+                        teammates = melee.nearby_enemies_by_distance(your_units)    
+                        if len(melees) <=  2*self.num_workers and len(teammates) >=1 and melee.can_duplicate(num_resources) : #len(resources)*num_melees:
+                            print("Duplicating")
                             num_resources = num_resources - 100
-                            teammates = melee.nearby_enemies_by_distance(your_units)
-                            if len(teammates) >= 1 and melee.can_duplicate(num_resources):
-                                directions = []
-                                for teammate in teammates:# find viable direction to teammates
-                                    direction = melee.direction_to(your_units.get_unit(teammate[0]).position())
-                                    if direction != None and (not direction in directions ):
-                                        directions.append(direction)
-                                for direction in ('UP', 'DOWN', 'LEFT', 'RIGHT'):
-                                    if not (direction in directions):
-                                        directions.append(direction)
-                                #print("directions: " + str(directions))
-                                for direction in directions:
-                                   # print("direction:" + str(direction))
-                                    goal = coordinate_from_direction(melee.position()[0], melee.position()[1], direction)
-                                    if goal == None:
-                                         l = 0
-                                     # print("goal is none")
-                                    elif is_open(game_map,goal, your_units, enemy_units):
-                                        moves.append(melee.duplicate(direction))
-                                        break
+                            directions = []
+                            for teammate in teammates:# find viable direction to teammates
+                                direction = melee.direction_to(your_units.get_unit(teammate[0]).position())
+                                if direction != None and (not direction in directions ):
+                                    directions.append(direction)
+                            for direction in ('UP', 'DOWN', 'LEFT', 'RIGHT'):
+                                if not (direction in directions):
+                                    directions.append(direction)
+                            print("directions: " + str(directions))
+                            for direction in directions:
+                                print("direction:" + str(direction))
+                                goal = coordinate_from_direction(melee.position()[0], melee.position()[1], direction)
+                                if goal == None:
+                                    print("goal is none")
+                                elif is_open(game_map, goal, your_units, enemy_units):
+                                    print("Duplicating towards:" + direction)
+                                    moves.append(melee.duplicate(direction))
                                     break
                         elif is_guarding: #and self.guardingLen[str(melee.id)] < 3:
+                            print("guarding unit :" + str(guarding.position()))
                             move = melee.move_towards(guarding.position())
                             moves.append(move)
                         else:
@@ -263,7 +272,13 @@ class GridPlayer:
         return moves
 
 def roam(unit, game_map, your_units, enemy_units):  #-> Move
-    directions = ('UP', 'DOWN', 'LEFT', 'RIGHT')
+    randDirections = ['UP', 'DOWN', 'LEFT', 'RIGHT']
+    directions = []
+    for x in range(0,4):
+        add = random.randint(0, 3-x)
+        directions.append(randDirections[add])
+        randDirections.pop(add)
+
     for direction in directions:
         goal = coordinate_from_direction(unit.position()[0], unit.position()[1], direction)
         if is_open(game_map, goal, your_units, enemy_units):
